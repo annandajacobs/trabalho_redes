@@ -91,5 +91,5 @@ class CacheTCPHandler(socketserver.StreamRequestHandler):
 
 if __name__ == "__main__":
     server = ThreadedTCPServer(('localhost', 11211), CacheTCPHandler)
-    print("Servidor memcache rodando em :11211 com suporte a múltiplas conexões e CAS thread-safe")
+    print("Servidor memcache rodando em: 11211")
     server.serve_forever()
