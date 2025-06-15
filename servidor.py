@@ -41,6 +41,19 @@ class CacheTCPHandler(socketserver.StreamRequestHandler):
                     resp = fn(key, data, flags, exptime)
                     if not noreply:
                         self.wfile.write((resp + "\r\n").encode())
+                
+                elif cmd in ("append", "prepend"):
+                    if len(parts) < 5:
+                        self.wfile.write(b"CLIENT_ERROR bad command line format\r\n")
+                        continue
+                    key, flags, exptime, bytes_len = parts[1:5]
+                    bytes_len = int(bytes_len)
+                    value = self.rfile.read(bytes_len + 2)[:-2]  # remove \r\n
+                    if cmd == "append":
+                        response = self.cache.append(key, value)
+                    else:
+                        response = self.cache.prepend(key, value)
+                    self.wfile.write((response + "\r\n").encode())
 
                 elif cmd == "cas":
                     key, flags, exptime, nbytes, cas_token = parts[1:6]

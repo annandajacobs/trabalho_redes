@@ -3,9 +3,9 @@ import threading
 
 class SimpleMemcached:
     def __init__(self):
-        self.store = {}  # key -> (value, flags, expire_at, cas_token)
+        self.store = {}  # key -> (value (bytes), flags, expire_at, cas_token)
         self.cas_versions = {}  # key -> int
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def _is_expired(self, meta):
         _, _, expire, _ = meta
@@ -25,7 +25,9 @@ class SimpleMemcached:
 
     def set(self, key, value, flags=0, exptime=0):
         with self.lock:
-            expire_at = time.time() + exptime if exptime else 0
+            if isinstance(value, str):
+                value = value.encode()
+            expire_at = time.time() + exptime if exptime > 0 else 0
             cas_token = self._next_cas_token(key)
             self.store[key] = (value, flags, expire_at, cas_token)
             return "STORED"
@@ -33,31 +35,63 @@ class SimpleMemcached:
     def get(self, key):
         with self.lock:
             meta = self._get_valid(key)
-            return meta[0] if meta else None
+            if meta:
+                value = meta[0]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            return None
 
     def gets(self, key):
         with self.lock:
             meta = self._get_valid(key)
             if meta:
                 value, _, _, cas_token = meta
-                return (value, cas_token)
+                return (value.decode(), cas_token) if isinstance(value, bytes) else (str(value), cas_token)
             return None
 
     def get_multi(self, keys):
         with self.lock:
-            return {k: self._get_valid(k)[0] for k in keys if self._get_valid(k)}
+            return {k: self._get_valid(k)[0].decode() for k in keys if self._get_valid(k)}
 
     def add(self, key, value, flags=0, exptime=0):
         with self.lock:
             if self._get_valid(key):
                 return "NOT_STORED"
-            return self.set(key, value, flags, exptime)
+            if isinstance(value, str):
+                value = value.encode()
+            expire_at = time.time() + exptime if exptime else 0
+            cas_token = self._next_cas_token(key)
+            self.store[key] = (value, flags, expire_at, cas_token)
+            return "STORED"
 
     def replace(self, key, value, flags=0, exptime=0):
         with self.lock:
             if not self._get_valid(key):
                 return "NOT_STORED"
             return self.set(key, value, flags, exptime)
+
+    def append(self, key, value):
+        with self.lock:
+            meta = self._get_valid(key)
+            if not meta:
+                return "NOT_STORED"
+            old_value, flags, expire, cas_id = meta
+            if isinstance(value, str):
+                value = value.encode()
+            new_value = old_value + value
+            self.store[key] = (new_value, flags, expire, cas_id)
+            return "STORED"
+
+    def prepend(self, key, value):
+        with self.lock:
+            meta = self._get_valid(key)
+            if not meta:
+                return "NOT_STORED"
+            old_value, flags, expire, cas_id = meta
+            if isinstance(value, str):
+                value = value.encode()
+            new_value = value + old_value
+            self.store[key] = (new_value, flags, expire, cas_id)
+            return "STORED"
 
     def delete(self, key):
         with self.lock:
@@ -74,7 +108,7 @@ class SimpleMemcached:
                 return "NOT_FOUND"
             val = meta[0]
             try:
-                new_val = str(int(val) + int(value))
+                new_val = str(int(val.decode()) + int(value))
                 return self.set(key, new_val, meta[1], meta[2] - time.time())
             except ValueError:
                 return "CLIENT_ERROR cannot increment"
@@ -86,7 +120,7 @@ class SimpleMemcached:
                 return "NOT_FOUND"
             val = meta[0]
             try:
-                new_val = max(0, int(val) - int(value))
+                new_val = max(0, int(val.decode()) - int(value))
                 return self.set(key, str(new_val), meta[1], meta[2] - time.time())
             except ValueError:
                 return "CLIENT_ERROR cannot decrement"
