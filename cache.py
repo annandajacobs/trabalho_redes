@@ -1,7 +1,7 @@
 import time
 import threading
 
-class SimpleMemcached:
+class Memcached:
     def __init__(self):
         '''
         - store: Cada valor associado a uma chave é uma tupla

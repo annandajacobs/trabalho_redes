@@ -1,11 +1,11 @@
 import socketserver
-from cache import SimpleMemcached
+from cache import Memcached
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 class CacheTCPHandler(socketserver.StreamRequestHandler):
-    cache = SimpleMemcached()
+    cache = Memcached()
 
     def handle(self):
         while True:
