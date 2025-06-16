@@ -17,7 +17,7 @@ class SimpleMemcached:
         Verifica se o valor armazenado já expirou, com base no tempo atual
         '''
         _, _, expire, _ = meta
-        return expire != 0 and time.time() > expire
+        return expire < 0 or (expire != 0 and time.time() > expire)
 
     def _get_valid(self, key): 
         '''
@@ -44,7 +44,8 @@ class SimpleMemcached:
         with self.lock:
             if isinstance(value, str):
                 value = value.encode()
-            expire_at = time.time() + exptime if exptime > 0 else 0
+            exptime = float(exptime)
+            expire_at = time.time() + exptime if exptime != 0 else 0
             cas_token = self._next_cas_token(key)
             self.store[key] = (value, flags, expire_at, cas_token)
             return "STORED"
@@ -154,7 +155,10 @@ class SimpleMemcached:
             val = meta[0]
             try:
                 new_val = str(int(val.decode()) + int(value))
-                return self.set(key, new_val, meta[1], meta[2] - time.time())
+                remaining_time = meta[2] - time.time()
+                remaining_time = max(0, remaining_time)
+                self.set(key, new_val, meta[1], remaining_time)
+                return str(new_val)
             except ValueError:
                 return "CLIENT_ERROR cannot increment"
 
@@ -169,7 +173,10 @@ class SimpleMemcached:
             val = meta[0]
             try:
                 new_val = max(0, int(val.decode()) - int(value))
-                return self.set(key, str(new_val), meta[1], meta[2] - time.time())
+                remaining_time = meta[2] - time.time()
+                remaining_time = max(0, remaining_time)
+                self.set(key, str(new_val), meta[1], remaining_time)
+                return str(new_val)
             except ValueError:
                 return "CLIENT_ERROR cannot decrement"
 

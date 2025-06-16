@@ -21,7 +21,8 @@ class CacheTCPHandler(socketserver.StreamRequestHandler):
                     for key in keys:
                         val = self.cache.get(key)
                         if val is not None:
-                            self.wfile.write(f"VALUE {key} 0 {len(val)}\r\n{val}\r\n".encode())
+                            val_str = str(val)
+                            self.wfile.write(f"VALUE {key} 0 {len(val_str)}\r\n{val_str}\r\n".encode())
                     self.wfile.write(b"END\r\n")
 
                 elif cmd == "gets":
