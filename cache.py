@@ -72,14 +72,6 @@ class Memcached:
                 return (value.decode(), cas_token) if isinstance(value, bytes) else (str(value), cas_token)
             return None
 
-    def get_multi(self, keys):
-        '''
-        - Recebe uma lista de chaves.
-        - Retorna um dicionário com os pares chave/valor válidos e não expirados.
-        '''
-        with self.lock:
-            return {k: self._get_valid(k)[0].decode() for k in keys if self._get_valid(k)}
-
     def add(self, key, value, flags=0, exptime=0):
         '''
         Só armazena o valor se a chave não existir. Ideal para criar um novo registro sem risco de sobrescrever algo.
