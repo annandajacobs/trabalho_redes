@@ -37,7 +37,11 @@ class CacheTCPHandler(socketserver.StreamRequestHandler):
                     key, flags, exptime, nbytes = parts[1:5]
                     noreply = "noreply" in parts
                     flags, exptime, nbytes = int(flags), int(exptime), int(nbytes)
-                    data = self.rfile.read(nbytes + 2)[:-2].decode()
+                    raw_data = self.rfile.read(nbytes + 2) # lê os dados + o \r\n
+                    if len(raw_data) != nbytes + 2 or not raw_data.endswith(b"\r\n"):
+                        self.wfile.write(b"CLIENT_ERROR\r\n")
+                        return
+                    data = raw_data[:-2].decode()
                     fn = getattr(self.cache, cmd)
                     resp = fn(key, data, flags, exptime)
                     if not noreply:
